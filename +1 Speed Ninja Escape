@@ -1,0 +1,156 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- Configuration
+local map2 = workspace:FindFirstChild("Map2")
+local giveWins = map2 and map2:FindFirstChild("GiveWins")
+local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
+local addSpeedRemote = eventsFolder and eventsFolder:FindFirstChild("AddSpeed")
+
+-- State Variables
+local isTpLooping = false
+local isSpeedLooping = false
+local tpConnection = nil
+local speedConnection = nil
+
+-- Helper: Get Target Pivot
+local function getTargetPivot()
+    if not giveWins then return nil end
+    local targetModel = giveWins:FindFirstChild("19")
+    if targetModel then
+        return targetModel:GetPivot()
+    end
+    return nil
+end
+
+-- Helper: Add Speed
+local function addSpeed()
+    if addSpeedRemote then
+        pcall(function() addSpeedRemote:FireServer() end)
+    end
+end
+
+-- UI Creation
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MasterHackUI"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 240, 0, 180)
+mainFrame.Position = UDim2.new(0.5, -120, 0.5, -90)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 25)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+titleBar.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "ZERO HUB"
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextScaled = true
+titleLabel.Parent = titleBar
+
+-- Dragging Logic
+local dragging = false
+local dragInput, mousePos, framePos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        mousePos = input.Position
+        framePos = mainFrame.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+end)
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - mousePos
+        mainFrame.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Button 1: Auto TP Toggle
+local btnTp = Instance.new("TextButton")
+btnTp.Size = UDim2.new(0.9, 0, 0, 40)
+btnTp.Position = UDim2.new(0.05, 0, 0.2, 0)
+btnTp.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+btnTp.Text = "AUTO WINS: OFF"
+btnTp.TextColor3 = Color3.new(1, 1, 1)
+btnTp.Font = Enum.Font.GothamBold
+btnTp.TextScaled = true
+btnTp.Parent = mainFrame
+
+btnTp.MouseButton1Click:Connect(function()
+    isTpLooping = not isTpLooping
+    if isTpLooping then
+        if not getTargetPivot() then
+            warn("⚠️ Target '19' not found! TP disabled.")
+            isTpLooping = false
+            return
+        end
+        btnTp.Text = "AUTO WINS: ON"
+        btnTp.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        tpConnection = RunService.Heartbeat:Connect(function()
+            if isTpLooping then
+                local targetPivot = getTargetPivot()
+                if targetPivot then
+                    local char = player.Character
+                    if char then
+                        char:PivotTo(targetPivot)
+                    end
+                end
+            end
+        end)
+    else
+        btnTp.Text = "AUTO WINS: OFF"
+        btnTp.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+        if tpConnection then tpConnection:Disconnect() end
+    end
+end)
+
+-- Button 2: Auto Speed Toggle
+local btnSpeed = Instance.new("TextButton")
+btnSpeed.Size = UDim2.new(0.9, 0, 0, 40)
+btnSpeed.Position = UDim2.new(0.05, 0, 0.55, 0)
+btnSpeed.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+btnSpeed.Text = "AUTO TRAIN: OFF"
+btnSpeed.TextColor3 = Color3.new(1, 1, 1)
+btnSpeed.Font = Enum.Font.GothamBold
+btnSpeed.TextScaled = true
+btnSpeed.Parent = mainFrame
+
+btnSpeed.MouseButton1Click:Connect(function()
+    isSpeedLooping = not isSpeedLooping
+    if isSpeedLooping then
+        if not addSpeedRemote then
+            warn("⚠️ AddSpeed Remote not found! Speed disabled.")
+            isSpeedLooping = false
+            return
+        end
+        btnSpeed.Text = "AUTO TRAIN: ON"
+        btnSpeed.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        speedConnection = RunService.Heartbeat:Connect(function()
+            if isSpeedLooping then
+                addSpeed()
+            end
+        end)
+    else
+        btnSpeed.Text = "AUTO TRAIN: OFF"
+        btnSpeed.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        if speedConnection then speedConnection:Disconnect() end
+    end
+end)
+
+print("✅ Master UI Loaded. Drag to move. Toggle features as needed.")   
